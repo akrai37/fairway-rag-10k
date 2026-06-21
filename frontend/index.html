@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>10-K Grounded QA</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1f2328; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #2f5cff; --accent-soft: #eef2ff;
+    --refuse: #b45309; --refuse-soft: #fffbeb;
+    --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header { padding: 28px 24px 8px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 24px 60px; }
+  .ask { display: flex; gap: 8px; margin: 12px 0 6px; }
+  .ask input {
+    flex: 1; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 15px; background: var(--panel); outline: none;
+  }
+  .ask input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ask button {
+    padding: 0 18px; border: 0; border-radius: 10px; background: var(--accent);
+    color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .ask button:disabled { opacity: .5; cursor: default; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 18px; }
+  .chip {
+    font-size: 12.5px; color: var(--muted); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .answer { padding: 16px; min-height: 80px; white-space: pre-wrap; }
+  .answer.refused { background: var(--refuse-soft); color: var(--refuse); }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 16px 14px; }
+  .badge { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .badge.muted { background: #f3f4f6; color: var(--muted); }
+  .cite { color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
+  .src { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .src:last-child { border-bottom: 0; }
+  .src .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .src .co { font-weight: 600; }
+  .src .sec { color: var(--muted); font-size: 12px; margin: 2px 0 6px; }
+  .src .txt { font-size: 12.5px; color: #374151; max-height: 84px; overflow: hidden; position: relative; }
+  .src .txt.open { max-height: none; }
+  .src .more { font-size: 12px; color: var(--accent); cursor: pointer; margin-top: 4px; display: inline-block; }
+  .sim { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .empty { padding: 16px; color: var(--muted); font-size: 13px; }
+  .src.flash { animation: flash 1.2s ease; }
+  @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Grounded Q&amp;A over six 10-K filings</h1>
+  <div class="sub">Apple · JPMorgan Chase · Walmart · Coca-Cola · NVIDIA · Caterpillar - answers cite source passages or say "I don't know".</div>
+</header>
+<main>
+  <div class="ask">
+    <input id="q" placeholder="Ask about these filings…" autocomplete="off" />
+    <button id="go">Ask</button>
+  </div>
+  <div class="examples" id="examples"></div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Answer</h2>
+      <div class="answer" id="answer"><span class="empty">Ask a question to begin.</span></div>
+      <div class="meta" id="meta"></div>
+    </section>
+    <aside class="card">
+      <h2>Sources</h2>
+      <div id="sources"><div class="empty">Retrieved passages will appear here.</div></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+const EXAMPLES = [
+  "What was NVIDIA's total revenue in its latest fiscal year?",
+  "Which of these companies reported the highest R&D expense?",
+  "What was Tesla's revenue?",
+  "Summarize Coca-Cola's main risk factors.",
+  "How many full-time employees does Walmart report?",
+];
+const qEl = document.getElementById('q');
+const goEl = document.getElementById('go');
+const answerEl = document.getElementById('answer');
+const metaEl = document.getElementById('meta');
+const sourcesEl = document.getElementById('sources');
+const examplesEl = document.getElementById('examples');
+
+EXAMPLES.forEach(t => {
+  const c = document.createElement('span');
+  c.className = 'chip'; c.textContent = t;
+  c.onclick = () => { qEl.value = t; runQuery(); };
+  examplesEl.appendChild(c);
+});
+
+let es = null;
+function runQuery() {
+  const q = qEl.value.trim();
+  if (!q) return;
+  if (es) es.close();
+  goEl.disabled = true;
+  answerEl.className = 'answer';
+  answerEl.textContent = '';
+  metaEl.innerHTML = '';
+  sourcesEl.innerHTML = '<div class="empty">Retrieving…</div>';
+  let raw = '';
+
+  es = new EventSource('/ask?q=' + encodeURIComponent(q));
+  es.onmessage = (ev) => {
+    const { type, payload } = JSON.parse(ev.data);
+    if (type === 'meta') {
+      const badges = [`<span class="badge">${payload.mode}</span>`];
+      if (payload.comparison) badges.push('<span class="badge muted">comparison</span>');
+      if (payload.companies && payload.companies.length)
+        badges.push(`<span class="badge muted">${payload.companies.join(', ')}</span>`);
+      metaEl.innerHTML = badges.join('');
+    } else if (type === 'token') {
+      raw += payload;
+      answerEl.textContent = raw;
+    } else if (type === 'sources') {
+      renderSources(payload);
+      answerEl.innerHTML = linkifyCitations(raw);
+    } else if (type === 'done') {
+      if (payload.refused) answerEl.className = 'answer refused';
+      goEl.disabled = false;
+      es.close();
+    } else if (type === 'error') {
+      answerEl.className = 'answer refused';
+      answerEl.textContent = 'Error: ' + payload;
+      goEl.disabled = false;
+      es.close();
+    }
+  };
+  es.onerror = () => { goEl.disabled = false; if (es) es.close(); };
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+}
+function linkifyCitations(text) {
+  return escapeHtml(text).replace(/\[(\d+)\]/g,
+    (_, n) => `<a class="cite" href="#src-${n}" onclick="flashSrc(${n})">[${n}]</a>`);
+}
+function flashSrc(n) {
+  const el = document.getElementById('src-' + n);
+  if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+function renderSources(list) {
+  if (!list || !list.length) {
+    sourcesEl.innerHTML = '<div class="empty">No sources - the answer was not grounded in these filings.</div>';
+    return;
+  }
+  sourcesEl.innerHTML = '';
+  list.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'src'; div.id = 'src-' + s.n;
+    div.innerHTML =
+      `<div class="top"><span class="co">[${s.n}] ${s.company}</span><span class="sim">sim ${s.similarity}</span></div>` +
+      `<div class="sec">${s.section} · filed ${s.filing_date}</div>` +
+      `<div class="txt" id="txt-${s.n}">${escapeHtml(s.text)}</div>` +
+      `<span class="more" onclick="document.getElementById('txt-${s.n}').classList.toggle('open')">show more / less</span>`;
+    sourcesEl.appendChild(div);
+  });
+}
+goEl.onclick = runQuery;
+qEl.addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
+</script>
+</body>
+</html>

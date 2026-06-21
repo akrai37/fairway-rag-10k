@@ -1,0 +1,18 @@
+# Ingestion / parsing
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# Vector store + embeddings (Chroma ships a built-in ONNX MiniLM embedder,
+# so no torch / sentence-transformers needed for the core pipeline)
+chromadb==0.5.23
+
+# Generation
+anthropic==0.40.0
+
+# API + serving
+fastapi==0.115.6
+uvicorn==0.34.0
+
+# Eval
+pyyaml==6.0.2
+python-dotenv==1.0.1

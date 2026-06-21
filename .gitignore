@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+# generated: edgar.py downloads, ingest.py builds
+data/
+.DS_Store
+
+# personal / not part of the submission
+SCHEMA.txt
+Fairway Take Home Brief.md

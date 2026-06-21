@@ -1,0 +1,92 @@
+# Hand-written eval set. Every figure was verified against the indexed filings.
+# Scoring (see eval.py): should_refuse -> pass if the system refused;
+# otherwise pass if every must_include token appears (number-format tolerant:
+# commas and $ are stripped, so "416,161" == "$416161").
+
+# --- single-fact, stated in PROSE ---
+- id: q01
+  type: single_prose
+  question: "What were Caterpillar's total sales and revenues in 2025?"
+  must_include: ["67.589"]          # "$67.589 billion"
+
+- id: q02
+  type: single_prose
+  question: "What was Walmart's diluted earnings per share in fiscal 2026?"
+  must_include: ["2.73"]
+
+- id: q03
+  type: single_prose
+  question: "Approximately how many associates does Walmart employ?"
+  must_include: ["2.1 million"]
+
+# --- single-fact, requires reading a TABLE (the stress case) ---
+- id: q04
+  type: table_read
+  question: "What was NVIDIA's total revenue in its most recent fiscal year?"
+  must_include: ["215,938"]
+
+- id: q05
+  type: table_read
+  question: "What was Apple's total net sales in fiscal 2025?"
+  must_include: ["416,161"]
+
+- id: q06
+  type: table_read
+  question: "What were The Coca-Cola Company's net operating revenues in 2025?"
+  must_include: ["47,941"]
+
+- id: q07
+  type: table_read
+  question: "What was Apple's research and development expense in fiscal 2025?"
+  must_include: ["34,550"]
+
+- id: q08
+  type: table_read
+  question: "What was JPMorgan Chase's total net revenue (managed basis) in 2025?"
+  must_include: ["185,581"]
+
+# --- cross-company comparisons (must retrieve from multiple filings) ---
+- id: q09
+  type: comparison
+  question: "Which of these six companies reported the highest total revenue?"
+  # Requires the actual figure, not just the name: a correct, grounded answer
+  # must surface Walmart's revenue. This deliberately fails today - the fan-out
+  # can't retrieve Walmart's total-revenue chunk (same table-number weakness as
+  # q06) - and originally false-passed on the bare "Walmart" substring.
+  must_include: ["Walmart", "713,163"]
+
+- id: q10
+  type: comparison
+  question: "Among these six companies, which reported the highest research and development expense?"
+  must_include: ["Apple"]          # $34,550M > NVIDIA's ~$18.6B - verified, counterintuitive
+
+# --- out-of-corpus: company NOT in the set -> must refuse ---
+- id: q11
+  type: out_of_corpus
+  question: "What was Tesla's revenue last year?"
+  should_refuse: true
+
+- id: q12
+  type: out_of_corpus
+  question: "Who is the CEO of Microsoft?"
+  should_refuse: true
+
+- id: q13
+  type: out_of_corpus
+  question: "What was Amazon's operating income?"
+  should_refuse: true
+
+# --- undisclosed fact about an IN-corpus company (the hard refusal) ---
+- id: q14
+  type: undisclosed
+  question: "What is Apple's customer churn rate?"
+  should_refuse: true            # retrieval returns Apple chunks, but the fact isn't disclosed
+
+# --- deliberate stress case: a cross-company question with NO company named
+#     and NO comparison cue word -> deterministic detector stays in "open" mode
+#     and retrieves from too few filings. Documented limitation. ---
+- id: q15
+  type: comparison_miss
+  question: "Do these businesses spend a lot on capital expenditures?"
+  should_refuse: false
+  must_include: ["Apple", "Walmart"]   # passes in the current run, but subtler comparison phrasing (no company named, no cue word) remains a known miss
